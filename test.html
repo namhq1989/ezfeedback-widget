@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Enhanced EzFeedback Widget Demo</title>
+  <style>
+      body {
+          font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+          line-height: 1.6;
+          margin: 0;
+          padding: 0;
+          background-color: #f5f5f5;
+          color: #333;
+      }
+
+      header {
+          background-color: #333;
+          color: white;
+          padding: 1rem;
+          text-align: center;
+      }
+
+      main {
+          max-width: 800px;
+          margin: 2rem auto;
+          padding: 1rem;
+          background-color: white;
+          border-radius: 8px;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      }
+
+      h1 {
+          margin-top: 0;
+      }
+
+      section {
+          margin-bottom: 2rem;
+      }
+
+      footer {
+          text-align: center;
+          padding: 1rem;
+          color: #666;
+          font-size: 0.9rem;
+      }
+
+      .code-block {
+          background-color: #f0f0f0;
+          padding: 1rem;
+          border-radius: 4px;
+          overflow-x: auto;
+      }
+
+      pre {
+          margin: 0;
+      }
+
+      code {
+          font-family: 'Courier New', Courier, monospace;
+      }
+
+      .btn {
+          display: inline-block;
+          background-color: #0072F5;
+          color: white;
+          padding: 0.5rem 1rem;
+          border-radius: 4px;
+          text-decoration: none;
+          font-weight: 500;
+          cursor: pointer;
+          border: none;
+      }
+
+      .btn:hover {
+          background-color: #005bbf;
+      }
+
+      .feature-highlight {
+          background-color: #fff8e1;
+          border-left: 4px solid #ffc107;
+          padding: 1rem;
+          margin: 1rem 0;
+          border-radius: 0 4px 4px 0;
+      }
+  </style>
+</head>
+<body>
+<header>
+  <h1>Enhanced EzFeedback Widget Demo</h1>
+</header>
+
+<main>
+  <section>
+    <h2>About EzFeedback</h2>
+    <p>EzFeedback is a lightweight, customizable feedback widget that can be easily embedded on any website. This enhanced version includes server data loading capability.</p>
+
+    <div class="feature-highlight">
+      <h3>New Feature: Server Data Loading</h3>
+      <p>The enhanced EzFeedback widget now loads configuration data from a server after initialization. This includes:</p>
+      <ul>
+        <li>Custom primary color</li>
+        <li>Dynamic category options</li>
+      </ul>
+      <p><strong>Note:</strong> For this demo, server data is simulated with a 1.5 second delay to demonstrate the loading state.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>Key Features</h2>
+    <ul>
+      <li>Floating feedback button that expands into a full form</li>
+      <li>Light/dark theme toggle</li>
+      <li>Star rating system</li>
+      <li>Server-loaded category selection</li>
+      <li>Feedback text area</li>
+      <li>Optional email field</li>
+      <li>Fully responsive design</li>
+      <li>No external dependencies</li>
+      <li>Loading indicator for server data</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Try It Now</h2>
+    <p>You can see the EzFeedback widget in action on this page. Look for the feedback button in the bottom-left corner. Notice how it first shows a loading spinner while fetching data from the server.</p>
+    <p>
+      <button id="showWidget" class="btn">Show Feedback Form</button>
+      <button id="toggleTheme" class="btn" style="margin-left: 10px; background-color: #6c757d;">Toggle Dark Mode</button>
+    </p>
+  </section>
+</main>
+
+<footer>
+  <p>© 2025 EzFeedback. A lightweight feedback widget for any website.</p>
+</footer>
+
+<!-- Include the EzFeedback Widget -->
+<script src="http://localhost:8080/ezfeedback.js" data-project-id="demo-project" data-position="bottom-left"></script>
+
+<script>
+  // Example of accessing the widget programmatically
+  document.addEventListener('DOMContentLoaded', function() {
+    const showWidgetBtn = document.getElementById('showWidget');
+    const toggleThemeBtn = document.getElementById('toggleTheme');
+
+    if (showWidgetBtn) {
+      showWidgetBtn.addEventListener('click', function() {
+        if (window.EzFeedback && window.EzFeedback._instance) {
+          window.EzFeedback._instance.showForm();
+        }
+      });
+    }
+
+    if (toggleThemeBtn) {
+      toggleThemeBtn.addEventListener('click', function() {
+        if (window.EzFeedback && window.EzFeedback._instance) {
+          window.EzFeedback._instance.toggleTheme();
+        }
+      });
+    }
+  });
+</script>
+</body>
+</html>
