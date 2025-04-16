@@ -493,8 +493,9 @@
           margin-top: 0px;
         }
         
-        .ez-submit-button:disabled {
-          background-color: #ccc;
+        .ez-feedback-form .ez-submit-button:disabled {
+          opacity: 0.5 !important;
+          background-color: ${this.config.primaryColor} !important;
           cursor: not-allowed;
         }
         
@@ -867,11 +868,14 @@
         </div>
         
         <div class="ez-input-group ez-animate-item">
-          <label for="ez-feedback">Tell us about your experience</label>
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <label for="ez-feedback">Tell us about your experience</label>
+            <span id="ez-char-counter" style="color: #888; font-size: 11px;">0/500</span>
+          </div>
           <textarea id="ez-feedback" class="ez-textarea" placeholder="What did you like or dislike? Any suggestions for improvement?" maxlength="500"></textarea>
         </div>
         
-        <div class="ez-input-group ez-animate-item">
+        <div class="ez-input-group ez-animate-item" style="margin-top: -8px;"> <!-- Margin top -8px due to the extra space at the bottom of the Textarea-->
           <label for="ez-email">Email (Optional)</label>
           <input type="email" id="ez-email" class="ez-input" placeholder="your@email.com">
           <small style="color: #888; font-size: 11px; margin-top: 4px; display: block;">We'll never share your email with anyone else</small>
@@ -891,7 +895,7 @@
     getSuccessHTML() {
       return `
         <div class="ez-form-header ez-animate-item">
-          <h3>Feedback Submitted</h3>
+          <h3>Feedback Sent</h3>
           <button class="ez-close-button" aria-label="Close feedback form">
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -902,11 +906,11 @@
         
         <div class="ez-success-message ez-animate-item">
           <div class="ez-success-icon">✓</div>
-          <h3 style="margin: 0 0 8px 0; font-size: 16px;">Thank you for your feedback!</h3>
-          <p style="margin: 0; color: #666; font-size: 14px;">Your feedback has been submitted successfully</p>
+          <h3 style="margin: 0 0 2px 0; font-size: 16px; font-weight: 600;">Thanks!</h3>
+          <p style="margin: 0; font-size: 14px; font-weight: 400;">Your feedback has been submitted successfully</p>
         </div>
         
-        <div class="ez-footer ez-animate-item">
+        <div class="ez-footer ez-animate-item" style="margin-top: 30px;">
           <div>Powered by <b><a class="ez-footer-link" href="https://ezfeedback.com" target="_blank">EzFeedback</a></b></div>
           <button class="ez-theme-toggle" aria-label="Toggle dark mode">
             ${this.getThemeIcon()}
@@ -930,19 +934,26 @@
       // Close button
       const closeBtn = form.querySelector('.ez-close-button');
       if (closeBtn) {
-        closeBtn.addEventListener('click', () => this.hideForm());
+        // Clone and replace to remove existing listeners
+        const newCloseBtn = closeBtn.cloneNode(true);
+        closeBtn.parentNode.replaceChild(newCloseBtn, closeBtn);
+        newCloseBtn.addEventListener('click', () => this.hideForm());
       }
 
       // Star rating
       const stars = form.querySelectorAll('.ez-star');
       stars.forEach(star => {
-        star.addEventListener('click', (e) => {
+        // Clone and replace to remove existing listeners
+        const newStar = star.cloneNode(true);
+        star.parentNode.replaceChild(newStar, star);
+
+        newStar.addEventListener('click', (e) => {
           const value = parseInt(e.target.getAttribute('data-value') || '0');
           this.setRating(value);
         });
 
         // Keyboard accessibility
-        star.addEventListener('keydown', (e) => {
+        newStar.addEventListener('keydown', (e) => {
           if (e.key === 'Enter' || e.key === ' ') {
             const value = parseInt(e.target.getAttribute('data-value') || '0');
             this.setRating(value);
@@ -967,28 +978,44 @@
       // Form validation inputs
       const textarea = form.querySelector('.ez-textarea');
       if (textarea) {
-        textarea.addEventListener('input', () => this.validateForm());
+        // Clone and replace to remove existing listeners
+        const newTextarea = textarea.cloneNode(true);
+        textarea.parentNode.replaceChild(newTextarea, textarea);
+        newTextarea.addEventListener('input', () => {
+          // Original validation function
+          this.validateForm();
+
+          // Update character counter
+          const counter = form.querySelector('#ez-char-counter');
+          if (counter) {
+            const currentLength = newTextarea.value.length;
+            counter.textContent = `${currentLength}/500`;
+          }
+        });
       }
 
       // Submit button
       const submitBtn = form.querySelector('.ez-submit-button');
       if (submitBtn) {
-        submitBtn.addEventListener('click', () => this.submitFeedback());
+        // Clone and replace to remove existing listeners
+        const newSubmitBtn = submitBtn.cloneNode(true);
+        submitBtn.parentNode.replaceChild(newSubmitBtn, submitBtn);
+        newSubmitBtn.addEventListener('click', () => this.submitFeedback());
       }
 
-      // Custom Select Dropdown Logic
+      // Custom Select Dropdown Logic - DON'T clone this as it breaks category functionality
       const customSelect = form.querySelector('.ez-custom-select');
       const selectedDisplay = form.querySelector('.ez-select-selected');
 
       if (customSelect && selectedDisplay) {
-        // Toggle dropdown on click
-        selectedDisplay.addEventListener('click', (e) => {
+        // Remove previous click listeners by using element.onclick instead of addEventListener
+        selectedDisplay.onclick = (e) => {
           e.stopPropagation(); // Prevent click from closing immediately via document listener
           customSelect.classList.toggle('active');
-        });
+        };
 
         // Keyboard accessibility for select
-        selectedDisplay.addEventListener('keydown', (e) => {
+        selectedDisplay.onkeydown = (e) => {
           if (e.key === 'Enter' || e.key === ' ') {
             customSelect.classList.toggle('active');
             e.preventDefault();
@@ -996,21 +1023,24 @@
             customSelect.classList.remove('active');
             e.preventDefault();
           }
-        });
+        };
 
-        // Initialize listeners for dynamically added options
+        // Initialize category listeners without replacing elements
         this.initCategoryListeners(form);
       }
 
       // Close dropdown when clicking outside - attached to document
       // Use a named function for easy removal later if needed
+      if (this._handleDocumentClick) {
+        document.removeEventListener('click', this._handleDocumentClick);
+      }
+
       this._handleDocumentClick = (e) => {
         if (customSelect && !customSelect.contains(e.target)) {
           customSelect.classList.remove('active');
         }
       };
-      // Ensure listener isn't added multiple times if initEventListeners is called again
-      document.removeEventListener('click', this._handleDocumentClick);
+
       document.addEventListener('click', this._handleDocumentClick);
     }
 
@@ -1032,10 +1062,12 @@
 
     validateForm() {
       const textarea = this.container.querySelector('.ez-textarea');
+      const categoryInput = this.container.querySelector('#ez-category');
       const submitBtn = this.container.querySelector('.ez-submit-button');
 
-      if (submitBtn && textarea) {
-        submitBtn.disabled = !(this.rating > 0 && textarea.value.trim().length > 0);
+      if (submitBtn && textarea && categoryInput) {
+        const categorySelected = categoryInput.value.trim().length > 0;
+        submitBtn.disabled = !(this.rating > 0 && textarea.value.trim().length > 0 && categorySelected);
       }
     }
 
@@ -1163,63 +1195,75 @@
     }
 
     submitFeedback() {
-      // Get form values
-      const category = this.container.querySelector('#ez-category').value;
-      const feedback = this.container.querySelector('.ez-textarea').value;
-      const email = this.container.querySelector('.ez-input').value;
+      // Prevent multiple submissions
+      if (this._isSubmitting) return;
+      this._isSubmitting = true;
 
-      // Disable submit button
-      const submitBtn = this.container.querySelector('.ez-submit-button');
-      if (submitBtn) {
-        submitBtn.disabled = true;
-        submitBtn.textContent = 'Submitting...';
-      }
+      try {
+        // Get form values
+        const category = this.container.querySelector('#ez-category').value;
+        const feedback = this.container.querySelector('.ez-textarea').value;
+        const email = this.container.querySelector('.ez-input').value;
 
-      // Create feedback data object
-      const feedbackData = {
-        projectId: this.config.projectId,
-        rating: this.rating,
-        category,
-        feedback,
-        email: email || null,
-        timestamp: new Date().toISOString(),
-        userAgent: navigator.userAgent,
-        url: window.location.href
-      };
-
-      // In a real implementation, you would send this to a server
-      console.log('Feedback submitted:', feedbackData);
-
-      // Simulate API call (replace with actual API call in production)
-      setTimeout(() => {
-        const form = this.container.querySelector('.ez-feedback-form');
-        if (form) {
-          form.innerHTML = this.getSuccessHTML();
-
-          // Re-add event listeners to success message elements
-          const closeBtn = form.querySelector('.ez-close-button');
-          if (closeBtn) {
-            closeBtn.addEventListener('click', () => this.hideForm());
-          }
-
-          const themeToggle = form.querySelector('.ez-theme-toggle');
-          if (themeToggle) {
-            themeToggle.addEventListener('click', () => this.toggleTheme());
-          }
-
-          // Animate the success message elements
-          setTimeout(() => {
-            this.animateFormElements();
-          }, 50);
-
-          // Auto-close after delay
-          setTimeout(() => {
-            if (this.formVisible) {
-              this.hideForm();
-            }
-          }, 300000);
+        // Disable submit button
+        const submitBtn = this.container.querySelector('.ez-submit-button');
+        if (submitBtn) {
+          submitBtn.disabled = true;
+          submitBtn.textContent = 'Submitting...';
         }
-      }, 1000);
+
+        // Create feedback data object
+        const feedbackData = {
+          projectId: this.config.projectId,
+          rating: this.rating,
+          category,
+          feedback,
+          email: email || null,
+          timestamp: new Date().toISOString(),
+          userAgent: navigator.userAgent,
+          url: window.location.href
+        };
+
+        // In a real implementation, you would send this to a server
+        console.log('Feedback submitted:', feedbackData);
+
+        // Simulate API call (replace with actual API call in production)
+        setTimeout(() => {
+          const form = this.container.querySelector('.ez-feedback-form');
+          if (form) {
+            form.innerHTML = this.getSuccessHTML();
+
+            // Re-add event listeners to success message elements
+            const closeBtn = form.querySelector('.ez-close-button');
+            if (closeBtn) {
+              closeBtn.addEventListener('click', () => this.hideForm());
+            }
+
+            const themeToggle = form.querySelector('.ez-theme-toggle');
+            if (themeToggle) {
+              themeToggle.addEventListener('click', () => this.toggleTheme());
+            }
+
+            // Animate the success message elements
+            setTimeout(() => {
+              this.animateFormElements();
+            }, 50);
+
+            // Auto-close after delay
+            setTimeout(() => {
+              if (this.formVisible) {
+                this.hideForm();
+              }
+            }, 5000);
+          }
+
+          // Reset submission flag after completion
+          this._isSubmitting = false;
+        }, 1000);
+      } catch (error) {
+        console.error("Error submitting feedback:", error);
+        this._isSubmitting = false;
+      }
     }
 
     destroy() {
