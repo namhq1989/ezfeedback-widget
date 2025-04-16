@@ -10,7 +10,6 @@
   const DEFAULT_CONFIG = {
     projectId: 'default-project',
     position: 'bottom-right',
-    size: 'medium',
     primaryColor: '#0072F5',
     theme: 'light'
   };
@@ -25,6 +24,10 @@
       this.container = null;
       this.formVisible = false;
 
+      // New properties for server data
+      this.serverData = null;
+      this.isLoading = false;
+
       // Initialize the widget
       this.init();
     }
@@ -33,18 +36,255 @@
       // Add styles to the document
       this.addStyles();
 
-      // Create the container element
+      // Create the container element but set it to be invisible initially
       this.container = document.createElement('div');
       this.container.id = 'ez-feedback-container';
+      this.container.style.display = 'none'; // Hide initially
 
       // Set container position based on config
       this.setPosition();
 
-      // Render the initial button
-      this.renderButton();
-
-      // Add container to the document body
+      // Add container to the document body (still empty and hidden)
       document.body.appendChild(this.container);
+
+      // Fetch server data before showing anything
+      this.fetchServerData();
+    }
+
+    fetchServerData() {
+      this.isLoading = true;
+
+      // Simulate API call with setTimeout
+      setTimeout(() => {
+        try {
+          // Server data assignment
+          this.serverData = {
+            primaryColor: '#caa6f7',
+            categories: [
+              { value: '', label: 'Select a category', isPlaceholder: true },
+              { value: 'bug', label: 'Bug Report' },
+              { value: 'feature', label: 'Feature Request' },
+              { value: 'content', label: 'Content Issue' },
+              { value: 'usability', label: 'Usability Problem' },
+              { value: 'performance', label: 'Performance Issue' },
+              { value: 'praise', label: 'Praise' },
+              { value: 'other', label: 'Other' }
+            ]
+          };
+
+          // Check if categories exist and are not empty
+          if (!this.serverData.categories || this.serverData.categories.length === 0) {
+            // If no categories, keep the widget hidden
+            console.log("No categories available, feedback widget will remain hidden");
+            this.isLoading = false;
+            return;
+          }
+
+          // Clear any existing content and render the button
+          this.container.innerHTML = '';
+
+          // Only now make the container visible
+          this.container.style.display = 'block';
+
+          // Render the button (without loading state)
+          this.renderButton();
+
+          // Update the widget with server data
+          this.updateWidgetWithServerData();
+          this.isLoading = false;
+        } catch (error) {
+          console.error("Error fetching server data:", error);
+          // Keep the container hidden on error
+          if (this.container && this.container.parentNode) {
+            this.container.parentNode.removeChild(this.container);
+          }
+          this.container = null;
+        }
+      }, 1500);
+    }
+
+    // New method: Update widget with fetched server data
+    updateWidgetWithServerData() {
+      if (!this.serverData) return;
+
+      // Update primary color
+      if (this.serverData.primaryColor) {
+        this.config.primaryColor = this.serverData.primaryColor;
+
+        // Update styles dynamically - Inject a new style tag to override defaults
+        const styleId = 'ez-feedback-dynamic-styles';
+        let dynamicStyle = document.getElementById(styleId);
+        if (!dynamicStyle) {
+            dynamicStyle = document.createElement('style');
+            dynamicStyle.id = styleId;
+            document.head.appendChild(dynamicStyle);
+        }
+        
+        dynamicStyle.textContent = `
+          #ez-feedback-container .ez-feedback-button {
+            background-color: ${this.config.primaryColor} !important;
+          }
+          #ez-feedback-container .ez-star.active {
+            color: ${this.config.primaryColor} !important;
+          }
+          #ez-feedback-container .ez-submit-button {
+            background-color: ${this.config.primaryColor} !important;
+          }
+          #ez-feedback-container .ez-footer-link:hover {
+            color: ${this.config.primaryColor} !important;
+          }
+          #ez-feedback-container.dark .ez-footer-link:hover {
+            color: ${this.config.primaryColor} !important; /* Ensure hover works in dark mode too */
+          }
+        `;
+      }
+
+      // Don't check if form is visible - prepare the categories data regardless
+      const form = this.container.querySelector('.ez-feedback-form');
+      if (form && this.serverData.categories) {
+        this.updateCategoryOptions(form);
+      }
+    }
+
+    // New method: Update category options in the form
+    updateCategoryOptions(formElement) {
+      const customSelect = formElement.querySelector('.ez-custom-select');
+      const selectedDisplay = formElement.querySelector('.ez-select-selected');
+      const hiddenInput = formElement.querySelector('#ez-category');
+      let optionsContainer = formElement.querySelector('.ez-select-options');
+
+      // If options container exists, remove it first
+      if (optionsContainer) {
+        optionsContainer.remove();
+      }
+
+      // Create a new options container
+      optionsContainer = document.createElement('div');
+      optionsContainer.className = 'ez-select-options';
+      optionsContainer.id = 'ez-select-options-container';
+
+      // NEW: Add dark theme class if in dark mode
+      if (this.theme === 'dark') {
+        optionsContainer.classList.add('ez-dark-options');
+      }
+
+      // Create the options from server data
+      if (this.serverData && this.serverData.categories) {
+        let placeholderLabel = 'Select a category'; // Default placeholder
+
+        // Add new options from server data
+        this.serverData.categories.forEach(category => {
+          const option = document.createElement('div');
+          option.className = 'ez-select-option';
+          if (category.isPlaceholder) {
+            option.classList.add('ez-select-placeholder');
+            placeholderLabel = category.label; // Use server-defined placeholder if available
+          }
+          option.setAttribute('data-value', category.value);
+          option.textContent = category.label;
+          optionsContainer.appendChild(option);
+        });
+
+        // Reset selected display and hidden input
+        if (selectedDisplay) selectedDisplay.textContent = placeholderLabel;
+        if (hiddenInput) hiddenInput.value = '';
+      }
+
+      // Append options container to the document body instead of inside the form
+      document.body.appendChild(optionsContainer);
+
+      // Hide it initially
+      optionsContainer.style.display = 'none';
+
+      // Store a reference to the options container on the custom select
+      if (customSelect) {
+        customSelect.optionsContainer = optionsContainer;
+      }
+
+      // Initialize event listeners for the category options
+      this.initCategoryListeners(formElement, optionsContainer);
+    }
+
+    initCategoryListeners(formElement, optionsContainer) {
+      const customSelect = formElement.querySelector('.ez-custom-select');
+      const selectedDisplay = formElement.querySelector('.ez-select-selected');
+      const hiddenInput = formElement.querySelector('#ez-category');
+
+      if (!customSelect || !selectedDisplay || !optionsContainer || !hiddenInput) return;
+
+      // Get the options
+      const options = optionsContainer.querySelectorAll('.ez-select-option');
+      if (!options.length) return;
+
+      // Style the options container for absolute positioning
+      optionsContainer.style.position = 'fixed';
+      optionsContainer.style.zIndex = '99999999'; // Ultra high z-index
+
+      // Apply dark mode class if needed
+      if (this.theme === 'dark') {
+        optionsContainer.classList.add('ez-dark-options');
+      } else {
+        optionsContainer.classList.remove('ez-dark-options');
+      }
+
+      // Add click event to the select display element
+      selectedDisplay.addEventListener('click', (e) => {
+        e.stopPropagation();
+
+        if (optionsContainer.style.display === 'block') {
+          // If already shown, hide it
+          optionsContainer.style.display = 'none';
+          customSelect.classList.remove('active');
+        } else {
+          // Position and show the dropdown
+          const rect = selectedDisplay.getBoundingClientRect();
+
+          optionsContainer.style.top = rect.bottom + 'px';
+          optionsContainer.style.left = rect.left + 'px';
+          optionsContainer.style.width = rect.width + 'px';
+          optionsContainer.style.display = 'block';
+
+          // Update dark mode class before showing
+          if (this.theme === 'dark') {
+            optionsContainer.classList.add('ez-dark-options');
+          } else {
+            optionsContainer.classList.remove('ez-dark-options');
+          }
+
+          customSelect.classList.add('active');
+        }
+      });
+
+      // Add click handlers to each option
+      options.forEach(option => {
+        option.addEventListener('click', () => {
+          // Skip if this is the placeholder
+          if (option.classList.contains('ez-select-placeholder')) {
+            return;
+          }
+
+          const value = option.getAttribute('data-value');
+          selectedDisplay.textContent = option.textContent;
+          hiddenInput.value = value;
+
+          optionsContainer.style.display = 'none';
+          customSelect.classList.remove('active');
+
+          this.validateForm();
+        });
+      });
+
+      // Close dropdown when clicking outside
+      this._handleDocumentClick = (e) => {
+        if (!customSelect.contains(e.target) && !optionsContainer.contains(e.target)) {
+          optionsContainer.style.display = 'none';
+          customSelect.classList.remove('active');
+        }
+      };
+
+      // Ensure we don't add multiple listeners
+      document.removeEventListener('click', this._handleDocumentClick);
+      document.addEventListener('click', this._handleDocumentClick);
     }
 
     addStyles() {
@@ -55,9 +295,26 @@
     
         #ez-feedback-container {
           position: fixed;
-          z-index: 9999;
+          z-index: 999999;
           font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
           font-size: 14px;
+        }
+        
+         .ez-feedback-form .ez-animate-item {
+            opacity: 0;
+            transform: translateY(15px);
+            transition: opacity 0.3s ease, transform 0.3s ease;
+          }
+          
+          .ez-feedback-form .ez-animate-item.ez-animate-visible {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        
+        .ez-input:focus, 
+        .ez-textarea:focus, 
+        .ez-select:focus {
+          outline: none;
         }
         
         .ez-feedback-button {
@@ -72,6 +329,7 @@
           cursor: pointer;
           box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
           transition: transform 0.3s ease;
+          -webkit-tap-highlight-color: transparent;
         }
         
         .ez-feedback-button:hover {
@@ -81,12 +339,13 @@
         .ez-feedback-form {
           display: none;
           position: absolute;
-          width: 300px;
+          width: 350px;
           background-color: white;
           border-radius: 12px;
           box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
           padding: 16px;
           animation: ez-slide-up 0.3s ease;
+          z-index: 999999;
         }
         
         .ez-feedback-form.visible {
@@ -122,7 +381,7 @@
         .ez-form-header h3 {
           margin: 0;
           font-size: 16px;
-          font-weight: 600;
+          font-weight: bold;
         }
         
         .ez-close-button {
@@ -152,8 +411,9 @@
         .ez-star {
           cursor: pointer;
           color: #ccc;
-          font-size: 24px;
-          transition: color 0.2s ease;
+          font-size: 40px;
+          line-height: 1;
+          transition: color 0.7s ease;
         }
         
         .ez-star.active {
@@ -230,6 +490,7 @@
           font-weight: 500;
           cursor: pointer;
           transition: background-color 0.2s;
+          margin-top: 0px;
         }
         
         .ez-submit-button:disabled {
@@ -251,6 +512,10 @@
           border: none;
           cursor: pointer;
           color: #888;
+        }
+        
+        .ez-feedback-form.dark .ez-theme-toggle {
+          color: #ddd;
         }
         
         .ez-success-message {
@@ -292,6 +557,198 @@
         .ez-feedback-form.dark .ez-footer-link:hover {
           color: ${this.config.primaryColor};
         }
+        
+        .ez-custom-select {
+          position: relative;
+          width: 100%;
+          z-index: 1;
+        }
+        
+        .ez-select-selected {
+          width: 100%;
+          padding: 8px 12px;
+          border: 1px solid #ddd;
+          border-radius: 6px;
+          font-size: 14px;
+          box-sizing: border-box;
+          background-color: white;
+          color: #333;
+          cursor: pointer;
+          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23333333' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+          background-repeat: no-repeat;
+          background-position: right 12px center;
+          user-select: none;
+        }
+        
+        .ez-select-selected:focus {
+          outline: none;
+        }
+        
+        .ez-feedback-form.dark .ez-select-selected {
+          background-color: #333;
+          border-color: #444;
+          color: white;
+          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23dddddd' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+        }
+        
+        .ez-select-options {
+          background-color: white;
+          border: 1px solid #ddd;
+          border-radius: 6px;
+          box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+          max-height: 200px;
+          overflow-y: auto;
+        }
+        
+        .ez-feedback-form.dark + .ez-select-options,
+        body.dark .ez-select-options {
+          background-color: #333;
+          border-color: #444;
+          color: white;
+        }
+        
+        .ez-select-options.ez-dark-options {
+          background-color: #333;
+          border-color: #444;
+          color: white;
+        }
+        
+        .ez-feedback-form.dark .ez-select-options {
+          background-color: #333;
+          border-color: #444;
+          box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+        }
+        
+        .ez-custom-select.active {
+          z-index: 9999999;
+        }
+        
+        .ez-custom-select.active .ez-select-options {
+          display: block;
+        }
+        
+        .ez-select-option {
+          padding: 6px 12px;
+          cursor: pointer;
+          font-size: 14px;
+          color: #333;
+        }
+        
+        .ez-select-options.ez-dark-options .ez-select-option {
+          color: white;
+        }
+        
+        .ez-feedback-form.dark .ez-select-option {
+          color: white;
+        }
+        
+        .ez-select-option:hover {
+          background-color: #f5f5f5;
+        }
+        
+        .ez-feedback-form.dark .ez-select-option:hover {
+          background-color: #444;
+        }
+        
+        .ez-select-options.ez-dark-options .ez-select-option:hover {
+          background-color: #444;
+        }
+        
+        .ez-select-option:last-child {
+          border-radius: 0 0 6px 6px;
+        }
+        
+        .ez-select-placeholder {
+          color: #888 !important;
+          cursor: default !important;
+        }
+        
+        .ez-select-placeholder:hover {
+          background-color: transparent !important;
+        }
+        
+        .ez-select-options.ez-dark-options .ez-select-placeholder {
+          color: #666 !important;
+        }
+        
+        .ez-feedback-form.dark .ez-select-placeholder {
+          color: #666 !important;
+        }
+        
+        #ez-select-options-container {
+          background-color: white;
+          border: 1px solid #ddd;
+          border-radius: 6px;
+          box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+          max-height: 200px;
+          overflow-y: auto;
+          z-index: 99999999;
+          -ms-overflow-style: none;  /* Internet Explorer and Edge */
+          scrollbar-width: none;     /* Firefox */
+        }
+        
+        #ez-select-options-container::-webkit-scrollbar {
+          display: none;
+        }
+        
+        /* Dark mode class for the detached dropdown */
+        #ez-select-options-container.ez-dark-options {
+          background-color: #333 !important;
+          border-color: #444 !important;
+        }
+        
+        /* Option styling */
+        #ez-select-options-container .ez-select-option {
+          padding: 6px 12px;
+          cursor: pointer;
+          font-size: 14px;
+          color: #333;
+        }
+        
+        /* Dark mode option styling */
+        #ez-select-options-container.ez-dark-options .ez-select-option {
+          color: white !important;
+        }
+        
+        /* Hover states */
+        #ez-select-options-container .ez-select-option:hover {
+          background-color: #f5f5f5;
+        }
+        
+        #ez-select-options-container.ez-dark-options .ez-select-option:hover {
+          background-color: #444 !important;
+        }
+        
+        /* Placeholder styling */
+        #ez-select-options-container .ez-select-placeholder {
+          color: #888 !important;
+          cursor: default !important;
+        }
+        
+        #ez-select-options-container .ez-select-placeholder:hover {
+          background-color: transparent !important;
+        }
+        
+        #ez-select-options-container.ez-dark-options .ez-select-placeholder {
+          color: #666 !important;
+        }
+        
+        /* Loading state for button */
+        .ez-feedback-button.ez-loading {
+          cursor: wait;
+        }
+        
+        .ez-loading-spinner circle {
+          stroke: white; /* Color of the spinner */
+          stroke-dashoffset: 80; /* Adjust for desired gap */
+          animation: ez-spinner-dash 1.5s ease-in-out infinite;
+        }
+
+        @keyframes ez-spinner-dash {
+          0% { stroke-dashoffset: 80; }
+          50% { stroke-dashoffset: 20; transform: rotate(135deg); }
+          100% { stroke-dashoffset: 80; transform: rotate(450deg); }
+        }
       `;
 
       document.head.appendChild(style);
@@ -328,14 +785,14 @@
       // Clear container
       this.container.innerHTML = '';
 
-      // Create button
+      // Create button with normal (non-loading) state
       const button = document.createElement('div');
       button.className = 'ez-feedback-button';
       button.innerHTML = `
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-        </svg>
-      `;
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+    </svg>
+  `;
 
       // Create form container
       const formContainer = document.createElement('div');
@@ -361,7 +818,11 @@
       formContainer.innerHTML = this.getFormHTML();
 
       // Add event listeners
-      button.addEventListener('click', () => this.toggleForm());
+      button.addEventListener('click', () => {
+        // If still loading data, don't open form yet
+        if (this.isLoading) return;
+        this.toggleForm();
+      });
 
       // Append elements to container
       this.container.appendChild(button);
@@ -373,8 +834,8 @@
 
     getFormHTML() {
       return `
-        <div class="ez-form-header">
-          <h3>Share your feedback</h3>
+        <div class="ez-form-header ez-animate-item">
+          <h3>SHARE YOUR FEEDBACK</h3> 
           <button class="ez-close-button" aria-label="Close feedback form">
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -383,8 +844,8 @@
           </button>
         </div>
         
-        <div class="ez-input-group">
-          <label style="margin-bottom: 2px;">How would you rate your experience?</label>
+        <div class="ez-input-group ez-animate-item">
+          <label>How would you rate your experience?</label>
           <div class="ez-star-rating">
             <span class="ez-star" data-value="1" role="button" tabindex="0">★</span>
             <span class="ez-star" data-value="2" role="button" tabindex="0">★</span>
@@ -394,32 +855,31 @@
           </div>
         </div>
         
-        <div class="ez-input-group">
+        <div class="ez-input-group ez-animate-item">
           <label for="ez-category">Category</label>
-          <select id="ez-category" class="ez-select">
-            <option value="">Select a category</option>
-            <option value="usability">Usability</option>
-            <option value="features">Features</option>
-            <option value="performance">Performance</option>
-            <option value="design">Design</option>
-            <option value="other">Other</option>
-          </select>
+          <div class="ez-custom-select">
+            <div class="ez-select-selected" tabindex="0">Select a category</div>
+            <div class="ez-select-options">
+              <!-- Categories will be dynamically populated from serverData -->
+            </div>
+            <input type="hidden" id="ez-category" value="">
+          </div>
         </div>
         
-        <div class="ez-input-group">
+        <div class="ez-input-group ez-animate-item">
           <label for="ez-feedback">Tell us about your experience</label>
           <textarea id="ez-feedback" class="ez-textarea" placeholder="What did you like or dislike? Any suggestions for improvement?" maxlength="500"></textarea>
         </div>
         
-        <div class="ez-input-group">
+        <div class="ez-input-group ez-animate-item">
           <label for="ez-email">Email (Optional)</label>
           <input type="email" id="ez-email" class="ez-input" placeholder="your@email.com">
           <small style="color: #888; font-size: 11px; margin-top: 4px; display: block;">We'll never share your email with anyone else</small>
         </div>
         
-        <button type="button" class="ez-submit-button" disabled>Submit Feedback</button>
+        <button type="button" class="ez-submit-button ez-animate-item" disabled>Submit Feedback</button>
         
-        <div class="ez-footer">
+        <div class="ez-footer ez-animate-item">
           <div>Powered by <b><a class="ez-footer-link" href="https://ezfeedback.com" target="_blank">EzFeedback</a></b></div>
           <button class="ez-theme-toggle" aria-label="Toggle dark mode">
             ${this.getThemeIcon()}
@@ -430,7 +890,7 @@
 
     getSuccessHTML() {
       return `
-        <div class="ez-form-header">
+        <div class="ez-form-header ez-animate-item">
           <h3>Feedback Submitted</h3>
           <button class="ez-close-button" aria-label="Close feedback form">
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -440,13 +900,13 @@
           </button>
         </div>
         
-        <div class="ez-success-message">
+        <div class="ez-success-message ez-animate-item">
           <div class="ez-success-icon">✓</div>
           <h3 style="margin: 0 0 8px 0; font-size: 16px;">Thank you for your feedback!</h3>
-          <p style="margin: 0; color: #666; font-size: 14px;">Your feedback has been submitted successfully.</p>
+          <p style="margin: 0; color: #666; font-size: 14px;">Your feedback has been submitted successfully</p>
         </div>
         
-        <div class="ez-footer">
+        <div class="ez-footer ez-animate-item">
           <div>Powered by <b><a class="ez-footer-link" href="https://ezfeedback.com" target="_blank">EzFeedback</a></b></div>
           <button class="ez-theme-toggle" aria-label="Toggle dark mode">
             ${this.getThemeIcon()}
@@ -464,14 +924,17 @@
     initEventListeners() {
       if (!this.container) return;
 
+      const form = this.container.querySelector('.ez-feedback-form');
+      if (!form) return; // Ensure form exists
+
       // Close button
-      const closeBtn = this.container.querySelector('.ez-close-button');
+      const closeBtn = form.querySelector('.ez-close-button');
       if (closeBtn) {
         closeBtn.addEventListener('click', () => this.hideForm());
       }
 
       // Star rating
-      const stars = this.container.querySelectorAll('.ez-star');
+      const stars = form.querySelectorAll('.ez-star');
       stars.forEach(star => {
         star.addEventListener('click', (e) => {
           const value = parseInt(e.target.getAttribute('data-value') || '0');
@@ -488,23 +951,67 @@
         });
       });
 
-      // Theme toggle
-      const themeToggle = this.container.querySelector('.ez-theme-toggle');
+      // Theme toggle - Fixed event binding
+      const themeToggle = form.querySelector('.ez-theme-toggle');
       if (themeToggle) {
-        themeToggle.addEventListener('click', () => this.toggleTheme());
+        // Remove any existing listeners to prevent duplicates
+        const newThemeToggle = themeToggle.cloneNode(true);
+        themeToggle.parentNode.replaceChild(newThemeToggle, themeToggle);
+
+        // Add the event listener to the new element
+        newThemeToggle.addEventListener('click', () => {
+          this.toggleTheme();
+        });
       }
 
-      // Form validation
-      const textarea = this.container.querySelector('.ez-textarea');
+      // Form validation inputs
+      const textarea = form.querySelector('.ez-textarea');
       if (textarea) {
         textarea.addEventListener('input', () => this.validateForm());
       }
 
       // Submit button
-      const submitBtn = this.container.querySelector('.ez-submit-button');
+      const submitBtn = form.querySelector('.ez-submit-button');
       if (submitBtn) {
         submitBtn.addEventListener('click', () => this.submitFeedback());
       }
+
+      // Custom Select Dropdown Logic
+      const customSelect = form.querySelector('.ez-custom-select');
+      const selectedDisplay = form.querySelector('.ez-select-selected');
+
+      if (customSelect && selectedDisplay) {
+        // Toggle dropdown on click
+        selectedDisplay.addEventListener('click', (e) => {
+          e.stopPropagation(); // Prevent click from closing immediately via document listener
+          customSelect.classList.toggle('active');
+        });
+
+        // Keyboard accessibility for select
+        selectedDisplay.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            customSelect.classList.toggle('active');
+            e.preventDefault();
+          } else if (e.key === 'Escape') { // Close on Escape
+            customSelect.classList.remove('active');
+            e.preventDefault();
+          }
+        });
+
+        // Initialize listeners for dynamically added options
+        this.initCategoryListeners(form);
+      }
+
+      // Close dropdown when clicking outside - attached to document
+      // Use a named function for easy removal later if needed
+      this._handleDocumentClick = (e) => {
+        if (customSelect && !customSelect.contains(e.target)) {
+          customSelect.classList.remove('active');
+        }
+      };
+      // Ensure listener isn't added multiple times if initEventListeners is called again
+      document.removeEventListener('click', this._handleDocumentClick);
+      document.addEventListener('click', this._handleDocumentClick);
     }
 
     setRating(value) {
@@ -544,37 +1051,106 @@
       if (themeToggle) {
         themeToggle.innerHTML = this.getThemeIcon();
       }
+
+      const optionsContainer = document.getElementById('ez-select-options-container');
+      if (optionsContainer) {
+        optionsContainer.classList.toggle('ez-dark-options', this.theme === 'dark');
+      }
+    }
+
+    animateFormElements() {
+      const animatedItems = this.container.querySelectorAll('.ez-animate-item');
+      if (!animatedItems.length) return;
+
+      // Stagger the animation of each item
+      animatedItems.forEach((item, index) => {
+        setTimeout(() => {
+          item.classList.add('ez-animate-visible');
+        }, 75 * index); // 75ms delay between each item
+      });
     }
 
     showForm() {
+      // Modified: Check loading state and update categories
+      if (this.isLoading) return; // Don't show form if still loading data
+
       const form = this.container.querySelector('.ez-feedback-form');
       if (form) {
+        // Ensure category options are updated with server data *before* showing
+        if (this.serverData && this.serverData.categories) {
+          this.updateCategoryOptions(form); // Update options
+        }
+
+        form.classList.remove('hiding'); // Ensure hiding class is removed
         form.classList.add('visible');
         this.formVisible = true;
+
+        // Reset animation classes before showing
+        const animatedItems = form.querySelectorAll('.ez-animate-item');
+        animatedItems.forEach(item => {
+          item.classList.remove('ez-animate-visible');
+        });
+
+        // Start staggered animation after form is visible
+        setTimeout(() => {
+          this.animateFormElements();
+        }, 50); // Small delay to ensure the form is visible first
+
+        // Re-initialize all event listeners for the form content
+        this.initEventListeners();
       }
     }
 
     hideForm() {
       const form = this.container.querySelector('.ez-feedback-form');
-      if (form) {
+      if (form && this.formVisible) { // Only hide if currently visible
         // Add a class for exit animation
         form.classList.add('hiding');
         this.formVisible = false;
 
-        // Wait for animation to complete before fully hiding
-        setTimeout(() => {
-          form.classList.remove('visible');
-          form.classList.remove('hiding');
+        // Reset animation classes
+        const animatedItems = form.querySelectorAll('.ez-animate-item');
+        animatedItems.forEach(item => {
+          item.classList.remove('ez-animate-visible');
+        });
 
-          // Reset form after animation completes
-          setTimeout(() => {
-            if (!this.formVisible) {
-              form.innerHTML = this.getFormHTML();
-              this.initEventListeners();
-              this.rating = 0;
+        // Wait for animation to complete before fully hiding and resetting
+        form.addEventListener('animationend', () => {
+          if (!this.formVisible) { // Check if it wasn't reopened during animation
+            form.classList.remove('visible');
+            form.classList.remove('hiding');
+
+            // Reset form content *after* animation
+            form.innerHTML = this.getFormHTML();
+            this.rating = 0; // Reset rating state
+
+            // Apply theme class correctly after reset
+            form.classList.toggle('dark', this.theme === 'dark');
+
+            // If we have server data, update dynamic parts (like categories)
+            if (this.serverData) {
+              this.updateCategoryOptions(form); // Update categories for next open
             }
-          }, 50);
-        }, 300);
+
+            // Re-attach essential listeners after innerHTML reset
+            this.initEventListeners();
+          }
+        }, { once: true }); // Use {once: true} to auto-remove listener
+
+        // Fallback timeout in case animationend event doesn't fire
+        setTimeout(() => {
+          if (!this.formVisible && form.classList.contains('hiding')) {
+            form.classList.remove('visible');
+            form.classList.remove('hiding');
+            form.innerHTML = this.getFormHTML();
+            this.rating = 0;
+            form.classList.toggle('dark', this.theme === 'dark');
+            if (this.serverData) {
+              this.updateCategoryOptions(form);
+            }
+            this.initEventListeners();
+          }
+        }, 350); // Slightly longer than animation
       }
     }
 
@@ -588,7 +1164,7 @@
 
     submitFeedback() {
       // Get form values
-      const category = this.container.querySelector('.ez-select').value;
+      const category = this.container.querySelector('#ez-category').value;
       const feedback = this.container.querySelector('.ez-textarea').value;
       const email = this.container.querySelector('.ez-input').value;
 
@@ -620,7 +1196,7 @@
         if (form) {
           form.innerHTML = this.getSuccessHTML();
 
-          // Add event listeners to success message elements
+          // Re-add event listeners to success message elements
           const closeBtn = form.querySelector('.ez-close-button');
           if (closeBtn) {
             closeBtn.addEventListener('click', () => this.hideForm());
@@ -631,21 +1207,47 @@
             themeToggle.addEventListener('click', () => this.toggleTheme());
           }
 
+          // Animate the success message elements
+          setTimeout(() => {
+            this.animateFormElements();
+          }, 50);
+
           // Auto-close after delay
           setTimeout(() => {
             if (this.formVisible) {
               this.hideForm();
             }
-          }, 3000);
+          }, 300000);
         }
       }, 1000);
     }
 
-    // Public method to destroy the widget
     destroy() {
+      // Remove the options container if it exists
+      const optionsContainer = document.getElementById('ez-select-options-container');
+      if (optionsContainer) {
+        optionsContainer.remove();
+      }
+
       if (this.container && this.container.parentNode) {
         this.container.parentNode.removeChild(this.container);
       }
+
+      // Remove document click listener if it exists
+      if (this._handleDocumentClick) {
+        document.removeEventListener('click', this._handleDocumentClick);
+      }
+
+      // Remove dynamic style tag
+      const dynamicStyle = document.getElementById('ez-feedback-dynamic-styles');
+      if (dynamicStyle) {
+        dynamicStyle.parentNode.removeChild(dynamicStyle);
+      }
+
+      // Nullify references to help GC
+      this.container = null;
+      this.config = null;
+      this.serverData = null;
     }
   }
 
@@ -664,15 +1266,14 @@
 
     // Auto-initialization from script tag
     document.addEventListener('DOMContentLoaded', () => {
-      const scriptTag = document.querySelector('script[data-ez-feedback-id]');
+      const scriptTag = document.querySelector('script[data-project-id]');
 
       if (scriptTag) {
         const config = {
-          projectId: scriptTag.getAttribute('data-ez-feedback-id'),
-          position: scriptTag.getAttribute('data-ez-feedback-position'),
-          size: scriptTag.getAttribute('data-ez-feedback-size'),
-          primaryColor: scriptTag.getAttribute('data-ez-feedback-color'),
-          theme: scriptTag.getAttribute('data-ez-feedback-theme')
+          projectId: scriptTag.getAttribute('data-project-id'),
+          position: scriptTag.getAttribute('data-position'),
+          primaryColor: scriptTag.getAttribute('data-color'),
+          theme: scriptTag.getAttribute('data-theme')
         };
 
         // Filter out undefined values
